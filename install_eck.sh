@@ -11,9 +11,9 @@ ES_NODEPORT=30920   # will be mapped to host 9200
 KB_NODEPORT=30601   # will be mapped to host 5601
 
 # ---- Helper ----
-need() { command -v "$1" >/dev/null 2>&1 || { echo "❌ Missing: $1. Please install it and re-run."; exit 1; }; }
+need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing: $1. Please install it and re-run."; exit 1; }; }
 
-echo "🔎 Checking prerequisites..."
+echo "Checking prerequisites..."
 need docker
 need kind
 need kubectl
@@ -21,13 +21,13 @@ need helm
 
 # Check Docker is actually running
 if ! docker info >/dev/null 2>&1; then
-  echo "❌ Docker daemon not reachable. Open Docker Desktop and ensure WSL integration is enabled."
+  echo "Docker daemon not reachable. Open Docker Desktop and ensure WSL integration is enabled."
   exit 1
 fi
 
 # ---- Create kind cluster (if not exists) with port mappings ----
 if ! kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
-  echo "⛏️  Creating kind cluster: ${CLUSTER_NAME}"
+  echo "Creating kind cluster: ${CLUSTER_NAME}"
   cat > /tmp/kind-${CLUSTER_NAME}.yaml <<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -51,11 +51,11 @@ nodes:
 EOF
   kind create cluster --name "${CLUSTER_NAME}" --config /tmp/kind-${CLUSTER_NAME}.yaml
 else
-  echo "ℹ️  kind cluster '${CLUSTER_NAME}' already exists; reusing."
+  echo "kind cluster '${CLUSTER_NAME}' already exists; reusing."
 fi
 
 # ---- Install ECK operator via Helm ----
-echo "📦 Installing ECK operator (Helm) in elastic-system..."
+echo "Installing ECK operator (Helm) in elastic-system..."
 helm repo add elastic https://helm.elastic.co >/dev/null
 helm repo update >/dev/null
 helm upgrade --install eck-operator elastic/eck-operator \
@@ -64,11 +64,11 @@ helm upgrade --install eck-operator elastic/eck-operator \
 
 kubectl create namespace ${NAMESPACE}
 
-echo "⏳ Waiting for ECK operator to be ready..."
+echo "Waiting for ECK operator to be ready..."
 kubectl rollout status sts/elastic-operator -n elastic-system --timeout=180s
 
 # ---- Deploy Elasticsearch (1 node) ----
-echo "🧰 Deploying Elasticsearch ${STACK_VERSION} (NodePort ${ES_NODEPORT} -> localhost:9200)..."
+echo "Deploying Elasticsearch ${STACK_VERSION} (NodePort ${ES_NODEPORT} -> localhost:9200)..."
 cat <<EOF | kubectl apply -f -
 apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
@@ -105,7 +105,7 @@ spec:
 EOF
 
 # ---- Deploy Kibana ----
-echo "🧰 Deploying Kibana ${STACK_VERSION} (NodePort ${KB_NODEPORT} -> localhost:5601)..."
+echo "Deploying Kibana ${STACK_VERSION} (NodePort ${KB_NODEPORT} -> localhost:5601)..."
 cat <<EOF | kubectl apply -f -
 apiVersion: kibana.k8s.elastic.co/v1
 kind: Kibana
@@ -129,44 +129,43 @@ spec:
 EOF
 
 # ---- Wait for ES to be healthy ----
-echo "⏳ Waiting for Elasticsearch health to be green (this can take a few minutes)..."
+echo "Waiting for Elasticsearch health to be green (this can take a few minutes)..."
 for i in {1..180}; do
   health="$(kubectl get elasticsearch elasticsearch -n "${NAMESPACE}" -o jsonpath='{.status.health}' 2>/dev/null || true)"
   if [[ "${health}" == "green" ]]; then
-    echo "✅ Elasticsearch is green."
+    echo "Elasticsearch is green."
     break
   fi
   sleep 2
   if [[ $i -eq 180 ]]; then
-    echo "⚠️ Timed out waiting for Elasticsearch to be green. Current status: '${health:-unknown}'"
+    echo "Timed out waiting for Elasticsearch to be green. Current status: '${health:-unknown}'"
   fi
 done
 
 # ---- Wait for Kibana to be ready ----
-echo "⏳ Waiting for Kibana to be ready..."
+echo "Waiting for Kibana to be ready..."
 kubectl rollout status deployment/kibana-kb -n "${NAMESPACE}" --timeout=300s || true
 
 # ---- Print credentials and endpoints ----
 echo
-echo "🔐 Fetching 'elastic' superuser password..."
+echo "Fetching 'elastic' superuser password..."
 ELASTIC_PW="$(kubectl get secret elasticsearch-es-elastic-user -n "${NAMESPACE}" -o go-template='{{.data.elastic | base64decode}}')"
 echo "elastic password: ${ELASTIC_PW}"
 echo
 
 cat <<MSG
-🎉 All set!
+All set!
 
 Endpoints (from Windows or WSL):
-  • Elasticsearch: https://localhost:9200
-  • Kibana:        https://localhost:5601
+  - Elasticsearch: https://localhost:9200
+  - Kibana:        https://localhost:5601
 
 Login:
-  • user: elastic
-  • pass: ${ELASTIC_PW}
+  - user: elastic
+  - pass: ${ELASTIC_PW}
 
 Notes:
-  • Certificates are self-signed → your browser/clients may prompt to proceed.
-  • To delete everything:
+  - Certificates are self-signed; your browser/clients may prompt to proceed.
+  - To delete everything:
         kind delete cluster --name "${CLUSTER_NAME}"
 MSG
-

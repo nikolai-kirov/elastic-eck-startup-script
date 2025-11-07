@@ -60,9 +60,3 @@ Remove everything by deleting the kind cluster:
 ```bash
 kind delete cluster --name "${CLUSTER_NAME:-eck-kind}"
 ```
-
-## Troubleshooting
-
-- **Docker not running**: Start Docker Desktop (or your preferred daemon) before executing the script.
-- **Port conflicts**: The script maps Elasticsearch to NodePort `30920` and Kibana to `30601`. If your host already uses ports `9200` or `5601`, stop the conflicting process or adjust the script.
-- **Slow startup**: Elasticsearch and Kibana can take a few minutes on resource-constrained machines. The script waits up to 6 minutes before timing out, but you can monitor progress with `kubectl get pods -n "${NAMESPACE:-elastic}" -w`.
